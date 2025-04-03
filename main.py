@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Fonction pour détecter le début et la fin des pluies par année
+# Fonction pour détecter le début, la fin et la durée des pluies par année
 def detecter_periodes_pluie_par_annee(df, seuil_precipitation=5):
     resultats = []
     localites = df['localite'].unique()
@@ -27,11 +27,13 @@ def detecter_periodes_pluie_par_annee(df, seuil_precipitation=5):
             fin_pluie = df_annee[df_annee['precipitation'] > seuil_precipitation]['date'].max()
             
             if pd.notna(debut_pluie) and pd.notna(fin_pluie):
+                duree = (fin_pluie - debut_pluie).days + 1  # +1 pour inclure le jour de fin
                 resultats.append({
                     'localite': localite,
                     'annee': annee,
                     'debut_pluie': debut_pluie,
-                    'fin_pluie': fin_pluie
+                    'fin_pluie': fin_pluie,
+                    'duree_jours': duree
                 })
     
     return pd.DataFrame(resultats)
@@ -47,7 +49,7 @@ with st.sidebar:
 
 # Main content
 st.title("Analyse des Précipitations par Localité et Année")
-st.markdown("Visualisez et analysez les périodes de pluie par localité et par année")
+st.markdown("Visualisez et analysez les périodes et durées de pluie par localité et par année")
 
 if uploaded_file is not None:
     try:
@@ -69,7 +71,7 @@ if uploaded_file is not None:
                 annees_selectionnees = st.multiselect(
                     "Sélectionner les années",
                     options=annees_disponibles,
-                    default=annees_disponibles[:max_annees_graph]  # Limite par défaut
+                    default=annees_disponibles[:max_annees_graph]
                 )
             
             # Filtrer les données selon les années sélectionnées
@@ -88,8 +90,8 @@ if uploaded_file is not None:
                     color='localite',
                     facet_col='annee',
                     title="Précipitations par Date, Localité et Année",
-                    height=500,  # Hauteur augmentée
-                    facet_col_spacing=0.05  # Espacement ajusté
+                    height=500,
+                    facet_col_spacing=0.05
                 )
                 fig.update_layout(
                     xaxis_title="Date",
@@ -100,7 +102,7 @@ if uploaded_file is not None:
             
             # Analyse des périodes dans la deuxième colonne
             with col2:
-                st.subheader("Périodes de Pluie par Année")
+                st.subheader("Périodes et Durées de Pluie par Année")
                 resultats = detecter_periodes_pluie_par_annee(df_filtre, seuil)
                 
                 # Formatage des dates pour l'affichage
@@ -111,7 +113,10 @@ if uploaded_file is not None:
                 st.dataframe(
                     resultats_display,
                     use_container_width=True,
-                    hide_index=True
+                    hide_index=True,
+                    column_config={
+                        "duree_jours": st.column_config.NumberColumn("Durée (jours)", format="%d")
+                    }
                 )
                 
                 # Bouton d'exportation
@@ -143,6 +148,13 @@ if uploaded_file is not None:
             fig_temps.add_hline(y=seuil, line_dash="dash", line_color="red", 
                               annotation_text=f"Seuil: {seuil}mm")
             st.plotly_chart(fig_temps, use_container_width=True)
+            
+            # Affichage de la durée pour la sélection
+            duree_selection = resultats[
+                (resultats['localite'] == localite_selection) & 
+                (resultats['annee'] == annee_selection)
+            ]['duree_jours'].iloc[0] if not resultats.empty else "N/A"
+            st.write(f"Durée de la saison de pluie : **{duree_selection} jours**")
             
     except Exception as e:
         st.error(f"Erreur lors du traitement du fichier : {str(e)}")
